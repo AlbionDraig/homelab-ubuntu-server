@@ -58,7 +58,7 @@ for compose_file in "${compose_files[@]}"; do
     high_risk_found=1
   fi
 
-  host_net_hits="$(grep -nEi '^[[:space:]]*network_mode:[[:space:]]*["'"']?host["'"']?([[:space:]]*#.*)?$' "$compose_file" || true)"
+  host_net_hits="$(grep -nEi $'^[[:space:]]*network_mode:[[:space:]]*[\"\']?host[\"\']?([[:space:]]*#.*)?$' "$compose_file" || true)"
   if [[ -n "$host_net_hits" ]]; then
     echo "[WARN] $stack_name | network_mode: host detectado en $compose_file"
     while IFS= read -r line; do
