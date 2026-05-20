@@ -1,0 +1,70 @@
+name: Validate Homelab
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure Docker Compose is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          if docker compose version >/dev/null 2>&1; then
+            echo "docker compose is already available"
+          else
+            echo "docker compose not found. Installing docker-compose-plugin..."
+            sudo apt-get update
+            sudo apt-get install -y docker-compose-plugin
+            docker compose version
+          fi
+
+      - name: Validate Bash script syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+
+          scripts=(scripts/**/*.sh)
+          if [ ${#scripts[@]} -eq 0 ]; then
+            echo "No Bash scripts found under scripts/**/*.sh"
+            exit 0
+          fi
+
+          for script in "${scripts[@]}"; do
+            echo "[BASH] Validating ${script}"
+            bash -n "${script}"
+          done
+
+          echo "All Bash scripts passed syntax validation."
+
+      - name: Validate Docker Compose syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          compose_files=$(find docker -type f -name docker-compose.yml | sort)
+          if [ -z "${compose_files}" ]; then
+            echo "No docker-compose.yml files found under docker/**"
+            exit 0
+          fi
+
+          while IFS= read -r compose_file; do
+            [ -z "${compose_file}" ] && continue
+            stack_dir=$(dirname "${compose_file}")
+            echo "[COMPOSE] Validating ${compose_file}"
+            docker compose -f "${compose_file}" config >/dev/null
+            echo "[COMPOSE] OK ${stack_dir}"
+          done <<< "${compose_files}"
+
+          echo "All Docker Compose files passed syntax validation."
