@@ -52,4 +52,26 @@ jobs:
 
       - name: Validate Docker Compose syntax
         shell: bash
-        run: bash scripts/validate_compose_all.sh
+        run: |
+          set -euo pipefail
+
+          docker network create proxy || true
+
+          failed=0
+          while IFS= read -r f; do
+            if docker compose -f "$f" config > /dev/null 2>&1; then
+              echo "[OK]   $f"
+            else
+              echo "[FAIL] $f"
+              failed=1
+            fi
+          done < <(find docker -name "docker-compose.yml" | sort)
+
+          docker network rm proxy 2>/dev/null || true
+
+          if [ "$failed" -eq 1 ]; then
+            echo "One or more Compose files failed validation."
+            exit 1
+          fi
+
+          echo "All Compose files passed validation."
