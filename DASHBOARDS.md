@@ -150,7 +150,87 @@ cd ../grafana && docker compose logs --tail=100 grafana
 cd docker/grafana && docker compose restart grafana
 ~~~
 
-## 10) Checklist final de validacion
+## 11) Runbooks de incidentes guiados por dashboard
+
+### Operations: contenedor unhealthy/restarts
+Accion recomendada:
+1. Confirmar estado y reinicios de contenedores.
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/check_docker_health.sh
+docker ps -a --format "table {{.Names}}\t{{.Status}}"
+~~~
+
+2. Revisar logs del servicio afectado para causa inmediata.
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+STACK=prometheus
+docker compose -f "docker/$STACK/docker-compose.yml" logs --tail=120
+~~~
+
+3. Aplicar recuperacion controlada y verificar.
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+STACK=prometheus
+docker compose -f "docker/$STACK/docker-compose.yml" up -d
+docker compose -f "docker/$STACK/docker-compose.yml" ps
+~~~
+
+### Capacity: presion de CPU/RAM/disco
+Accion recomendada:
+1. Confirmar saturacion del host y espacio util.
+
+~~~bash
+uptime
+free -h
+df -h
+~~~
+
+2. Identificar presion de contenedores y consumo de Docker.
+
+~~~bash
+docker stats --no-stream
+docker system df
+~~~
+
+3. Ejecutar mitigacion operativa de limpieza y volver a medir.
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/rotate_prune_logs.sh
+df -h
+~~~
+
+### Security: error spikes/eventos de auth
+Accion recomendada:
+1. Confirmar estado de stack de seguridad y componentes base.
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/crowdsec/docker-compose.yml ps
+docker compose -f docker/traefik/docker-compose.yml ps
+~~~
+
+2. Revisar eventos recientes en logs operativos.
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/crowdsec/docker-compose.yml logs --tail=150 crowdsec
+docker compose -f docker/traefik/docker-compose.yml logs --tail=150 traefik
+~~~
+
+3. Revalidar baseline y estado general tras accion inmediata.
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/security_baseline_audit.sh
+./scripts/check_docker_health.sh
+~~~
+
+## 12) Checklist final de validacion
 - [ ] Grafana accesible en http://localhost:3000.
 - [ ] Prometheus y Loki en estado listo.
 - [ ] Los 4 dashboards de Homelab visibles y cargando datos.

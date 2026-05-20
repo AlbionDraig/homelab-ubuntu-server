@@ -291,6 +291,178 @@ crontab -l
 sudo ls -lah /var/log/homelab
 ~~~
 
+## Runbooks de incidentes (L1)
+
+### 1) Todos los contenedores caidos
+- Señal: `docker ps` devuelve vacio o la mayoria de servicios aparece `Exited` en `docker ps -a`.
+- Diagnostico rapido:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/check_docker_health.sh
+docker ps -a --format "table {{.Names}}\t{{.Status}}"
+sudo systemctl status docker --no-pager
+~~~
+
+- Acciones inmediatas:
+
+~~~bash
+sudo systemctl restart docker
+cd /opt/homelab-ubuntu-server
+for f in $(find docker -type f -name docker-compose.yml | sort); do
+  docker compose -f "$f" up -d
+done
+~~~
+
+- Validacion de cierre:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/check_docker_health.sh
+docker ps --format "table {{.Names}}\t{{.Status}}"
+~~~
+
+### 2) Un stack no levanta
+- Señal: un stack especifico queda en `Exit`/`Restarting` o no crea contenedores.
+- Diagnostico rapido:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+STACK=grafana
+docker compose -f "docker/$STACK/docker-compose.yml" config
+docker compose -f "docker/$STACK/docker-compose.yml" ps
+docker compose -f "docker/$STACK/docker-compose.yml" logs --tail=120
+~~~
+
+- Acciones inmediatas:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+STACK=grafana
+docker compose -f "docker/$STACK/docker-compose.yml" pull
+docker compose -f "docker/$STACK/docker-compose.yml" up -d
+~~~
+
+- Validacion de cierre:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+STACK=grafana
+docker compose -f "docker/$STACK/docker-compose.yml" ps
+./scripts/check_docker_health.sh
+~~~
+
+### 3) Grafana sin datos
+- Señal: paneles cargan, pero muestran `No data` en la mayoria de widgets.
+- Diagnostico rapido:
+
+~~~bash
+curl -fsS http://localhost:3000/api/health
+curl -fsS http://localhost:9090/-/ready
+curl -fsS http://localhost:3100/ready
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/grafana/docker-compose.yml logs --tail=120 grafana
+docker compose -f docker/prometheus/docker-compose.yml logs --tail=120 prometheus
+~~~
+
+- Acciones inmediatas:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/prometheus/docker-compose.yml up -d
+docker compose -f docker/loki/docker-compose.yml up -d
+docker compose -f docker/grafana/docker-compose.yml restart grafana
+~~~
+
+- Validacion de cierre:
+
+~~~bash
+curl -fsS http://localhost:3000/api/health
+curl -fsS http://localhost:9090/-/ready
+curl -fsS http://localhost:3100/ready
+~~~
+
+### 4) Loki/Promtail sin logs
+- Señal: paneles de logs vacios o eventos detenidos en Security/Operations.
+- Diagnostico rapido:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/loki/docker-compose.yml ps
+docker compose -f docker/promtail/docker-compose.yml ps
+docker compose -f docker/loki/docker-compose.yml logs --tail=120 loki
+docker compose -f docker/promtail/docker-compose.yml logs --tail=120 promtail
+~~~
+
+- Acciones inmediatas:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/loki/docker-compose.yml restart loki
+docker compose -f docker/promtail/docker-compose.yml restart promtail
+docker compose -f docker/promtail/docker-compose.yml up -d
+~~~
+
+- Validacion de cierre:
+
+~~~bash
+curl -fsS http://localhost:3100/ready
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/promtail/docker-compose.yml logs --tail=80 promtail
+~~~
+
+### 5) Disco casi lleno
+- Señal: uso de disco mayor a 85% en `/` o alertas de capacidad en Grafana.
+- Diagnostico rapido:
+
+~~~bash
+df -h
+docker system df
+sudo du -xh /var/log/homelab | sort -h | tail -n 20
+~~~
+
+- Acciones inmediatas:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/rotate_prune_logs.sh
+sudo journalctl --vacuum-time=7d
+docker system prune -f
+~~~
+
+- Validacion de cierre:
+
+~~~bash
+df -h
+docker system df
+~~~
+
+### 6) Certificados por vencer
+- Señal: alertas de TLS, errores de handshake o proximidad de expiracion (<30 dias).
+- Diagnostico rapido:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/check_tls_expiry.sh
+docker compose -f docker/traefik/docker-compose.yml logs --tail=120 traefik
+~~~
+
+- Acciones inmediatas:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+docker compose -f docker/traefik/docker-compose.yml restart traefik
+./scripts/check_tls_expiry.sh
+~~~
+
+- Validacion de cierre:
+
+~~~bash
+cd /opt/homelab-ubuntu-server
+./scripts/check_tls_expiry.sh
+docker compose -f docker/traefik/docker-compose.yml ps
+~~~
+
 ## Notas de seguridad y backups
 
 - No borres volumenes Docker ni backups sin validacion previa.
