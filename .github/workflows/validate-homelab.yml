@@ -35,18 +35,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s globstar nullglob
 
-          scripts=(scripts/**/*.sh)
-          if [ ${#scripts[@]} -eq 0 ]; then
-            echo "No Bash scripts found under scripts/**/*.sh"
+          mapfile -t scripts < <(find scripts -name "*.sh" | sort)
+
+          if [ "${#scripts[@]}" -eq 0 ]; then
+            echo "No Bash scripts found under scripts/"
             exit 0
           fi
 
+          failed=0
           for script in "${scripts[@]}"; do
             echo "[BASH] Validating ${script}"
-            bash -n "${script}"
+            if ! bash -n "${script}" 2>&1; then
+              echo "[FAIL] Syntax error in ${script}"
+              failed=1
+            else
+              echo "[OK]   ${script}"
+            fi
           done
+
+          if [ "$failed" -eq 1 ]; then
+            echo "One or more Bash scripts failed syntax validation."
+            exit 1
+          fi
 
           echo "All Bash scripts passed syntax validation."
 
@@ -55,17 +66,26 @@ jobs:
         run: |
           set -euo pipefail
 
-          docker network create proxy || true
+          docker network create proxy 2>/dev/null || true
+
+          mapfile -t compose_files < <(find docker -name "docker-compose.yml" | sort)
+
+          if [ "${#compose_files[@]}" -eq 0 ]; then
+            echo "No docker-compose.yml files found under docker/"
+            exit 0
+          fi
 
           failed=0
-          while IFS= read -r f; do
-            if docker compose -f "$f" config > /dev/null 2>&1; then
-              echo "[OK]   $f"
-            else
+          for f in "${compose_files[@]}"; do
+            echo "[COMPOSE] Validating $f"
+            output=$(docker compose -f "$f" config 2>&1) || {
               echo "[FAIL] $f"
+              echo "$output"
               failed=1
-            fi
-          done < <(find docker -name "docker-compose.yml" | sort)
+              continue
+            }
+            echo "[OK]   $f"
+          done
 
           docker network rm proxy 2>/dev/null || true
 
