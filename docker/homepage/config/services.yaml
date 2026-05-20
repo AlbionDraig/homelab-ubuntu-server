@@ -1,0 +1,26 @@
+- Infrastructure:
+    - Portainer:
+        href: http://albiondraigserver:9000
+        description: Docker Management
+
+    - Traefik:
+        href: http://albiondraigserver:8080
+        description: Reverse Proxy
+
+- Monitoring:
+    - Grafana:
+        href: http://albiondraigserver:3000
+        description: Dashboards
+
+    - Prometheus:
+        href: http://albiondraigserver:9090
+        description: Metrics
+
+    - Uptime Kuma:
+        href: http://albiondraigserver:3001
+        description: Status Monitoring
+
+- Minecraft:
+    - Crafty:
+        href: https://albiondraigserver:8443
+        description: Gestor de servidores

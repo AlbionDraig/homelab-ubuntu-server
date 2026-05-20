@@ -1,0 +1,96 @@
+# ============================================================
+# .gitignore para homelab Docker Compose
+# Objetivo: ignorar secretos y datos runtime pesados,
+# sin ocultar docker-compose.yml ni configuraciones generales.
+# ============================================================
+
+# --- Secretos y credenciales locales ---
+*.env
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Claves/certificados comunes
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+*.kdbx
+
+# Directorios de certificados (si se generan localmente)
+**/certs/
+**/certificates/
+
+# --- Logs ---
+*.log
+logs/
+**/logs/
+
+# --- Archivos temporales y cache ---
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.orig
+*.pid
+*.seed
+*.lock
+*.cache
+.cache/
+.tmp/
+tmp/
+
+# --- Artefactos temporales de SQLite ---
+*.sqlite-wal
+*.sqlite-shm
+*.db-wal
+*.db-shm
+
+# --- Runtime pesado de Minecraft / Crafty ---
+# Mundos, librerias, logs y reportes de crash
+# --- Crafty especifico ---
+/docker/crafty/backups/
+/docker/crafty/backups/**
+/docker/crafty/config/
+/docker/crafty/config/**
+/docker/crafty/crafty-config/
+/docker/crafty/crafty-config/**
+/docker/crafty/crafty-logs/
+/docker/crafty/crafty-logs/**
+/docker/crafty/logs/
+/docker/crafty/logs/**
+/docker/crafty/servers/
+/docker/crafty/servers/**
+/docker/crafty/minecraft/
+/docker/crafty/minecraft/**
+**/minecraft/**/world/
+**/minecraft/**/libraries/
+**/minecraft/**/logs/
+**/minecraft/**/crash-reports/
+**/servers/**/world/
+**/servers/**/libraries/
+**/servers/**/logs/
+**/servers/**/crash-reports/
+
+# --- Backups locales ---
+backups/
+**/backups/
+
+# --- Archivos de sistema operativo ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Archivos de editor / IDE ---
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-workspace
+*.sublime-project
+
+# Nota:
+# No se ignoran docker-compose.yml ni archivos yaml/json generales del repo.

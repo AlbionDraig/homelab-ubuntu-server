@@ -1,0 +1,14 @@
+title: AlbionDraig HomeLab
+
+background:
+  image: https://images.unsplash.com/photo-1518770660439-4636190af475
+  blur: sm
+  saturate: 50
+  brightness: 50
+  opacity: 50
+
+theme: dark
+
+color: slate
+
+headerStyle: boxed

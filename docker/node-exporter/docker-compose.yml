@@ -1,0 +1,34 @@
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: node-exporter
+
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.hwmon'
+      - '--collector.thermal_zone'
+      - '--collector.sensors'
+      - '--collector.systemd'
+      - '--collector.processes'
+      - '--collector.cpu'
+      - '--collector.meminfo'
+      - '--collector.filesystem'
+      - '--collector.loadavg'
+      - '--collector.netdev'
+
+    ports:
+      - "9100:9100"
+
+    volumes:
+      - '/:/host:ro,rslave'
+
+    pid: host
+
+    restart: unless-stopped
+
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

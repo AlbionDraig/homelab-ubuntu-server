@@ -1,0 +1,27 @@
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+
+    ports:
+      - "8081:8080"
+
+    volumes:
+      - crowdsec-data:/var/lib/crowdsec/data
+      - /var/log:/var/log:ro
+
+    environment:
+      COLLECTIONS: "crowdsecurity/linux"
+
+    restart: unless-stopped
+
+    networks:
+      - proxy
+
+volumes:
+  crowdsec-data:
+
+networks:
+  proxy:
+    external: true
+
