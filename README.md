@@ -472,6 +472,24 @@ docker compose -f docker/traefik/docker-compose.yml ps
 - Mantener retencion de backups y probar restore regularmente con `./scripts/verify_backup_restore.sh`.
 - Para cambios de alto impacto (firewall, red, disco), aplica primero en ventana de mantenimiento.
 
+## Inventario y ownership de servicios
+
+| Stack | Rol | Puertos | Dependencias | Datos persistentes | Owner operativo | Criticidad (Alta/Media/Baja) | Runbook principal |
+|---|---|---|---|---|---|---|---|
+| traefik | Reverse proxy y punto de entrada HTTP | 80 -> 80, 8080 -> 8080 | Docker socket, red `proxy` | No aplica (sin volumen de datos propio) | Homelab Ops | Alta | L1-6 Certificados por vencer |
+| crowdsec | Deteccion de amenazas y correlacion de eventos | 8081 -> 8080 | Logs del host (`/var/log`), red `proxy` | Volumen `crowdsec-data` | Homelab Ops | Media | L1-2 Un stack no levanta |
+| prometheus | Recoleccion y consulta de metricas | 9090 -> 9090 | `node-exporter`, `cadvisor`, red `proxy` | `docker/prometheus/prometheus.yml` | Homelab Ops | Alta | L1-3 Grafana sin datos |
+| grafana | Visualizacion de metricas y logs | 3000 -> 3000 | `prometheus`, `loki`, red `proxy` | Volumen `grafana-data`, `docker/grafana/provisioning`, `docker/grafana/dashboards` | Homelab Ops | Alta | L1-3 Grafana sin datos |
+| loki | Almacenamiento y consulta de logs | 3100 -> 3100 | `promtail`, red `proxy` | Volumen `loki-data`, `docker/loki/loki-config.yml` | Homelab Ops | Media | L1-4 Loki/Promtail sin logs |
+| promtail | Recoleccion y envio de logs | N/A | `loki`, logs del host (`/var/log`), red `proxy` | `docker/promtail/promtail-config.yml` | Homelab Ops | Media | L1-4 Loki/Promtail sin logs |
+| node-exporter | Exportador de metricas del host | 9100 -> 9100 | Host rootfs (`/:/host`), red `proxy` | No aplica (lector del host en modo RO) | Homelab Ops | Media | L1-3 Grafana sin datos |
+| cadvisor | Exportador de metricas de contenedores | 8088 -> 8080 | Docker daemon, host fs, red `proxy` | No aplica (lectura de rutas del host en modo RO) | Homelab Ops | Media | L1-3 Grafana sin datos |
+| homepage | Portal de acceso a servicios del homelab | 3002 -> 3000 | Docker socket, red `proxy` | `docker/homepage/config` | Homelab Ops | Baja | L1-2 Un stack no levanta |
+| uptime-kuma | Monitoreo de disponibilidad y alertas | 3001 -> 3001 | Servicios monitorizados, red `proxy` | Volumen `uptime-kuma` | Homelab Ops | Media | L1-2 Un stack no levanta |
+| crafty | Panel y servicio de gestion de juego | 8443 -> 8443, 8123 -> 8123, 25565 -> 25565 | Red `proxy`, almacenamiento local del stack | `docker/crafty/crafty-config`, `docker/crafty/crafty-logs`, `docker/crafty/servers`, `docker/crafty/backups` | Homelab Ops | Baja | L1-2 Un stack no levanta |
+
+Actualizar owner y criticidad cuando cambie el alcance del servicio.
+
 ## Rutas reales del proyecto
 
 - Repo: /opt/homelab-ubuntu-server
