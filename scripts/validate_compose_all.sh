@@ -7,14 +7,19 @@
 
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "[ERROR] docker no esta disponible en PATH"
-  exit 2
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+init_runtime "validate_compose_all" 900
+require_commands docker find sort
+
+mapfile -t compose_files < <(run_with_script_timeout find "$ROOT_DIR/docker" -type f -name 'docker-compose.yml')
+if ((${#compose_files[@]} > 0)); then
+  mapfile -t compose_files < <(printf '%s\n' "${compose_files[@]}" | sort)
 fi
-
-mapfile -t compose_files < <(find "$ROOT_DIR/docker" -type f -name 'docker-compose.yml' | sort)
 
 if ((${#compose_files[@]} == 0)); then
   echo "[WARN] No se encontraron docker-compose.yml en $ROOT_DIR/docker"
@@ -31,7 +36,7 @@ echo
 for compose_file in "${compose_files[@]}"; do
   stack_name="$(basename "$(dirname "$compose_file")")"
 
-  if docker compose -f "$compose_file" config >/dev/null 2>&1; then
+  if run_with_script_timeout docker compose -f "$compose_file" config >/dev/null 2>&1; then
     echo "[OK]   $stack_name ($compose_file)"
   else
     echo "[FAIL] $stack_name ($compose_file)"

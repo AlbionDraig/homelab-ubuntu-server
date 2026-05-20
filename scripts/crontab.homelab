@@ -3,6 +3,7 @@
 # Uso:
 # 1) Copia este archivo al host donde corre cron.
 # 2) Ajusta REPO_DIR y LOG_DIR segun tu entorno.
+#    Define LOCK_DIR para locks de ejecucion por tarea y timeout por SCRIPT_TIMEOUT_SEC.
 # 3) Crea LOG_DIR si no existe: mkdir -p "$LOG_DIR"
 # 4) Carga la configuracion: crontab scripts/crontab.homelab
 
@@ -10,30 +11,31 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 REPO_DIR=/opt/homelab-ubuntu-server
 LOG_DIR=/var/log/homelab
+LOCK_DIR=/var/lock/homelab
 
 # mantenimiento.sh (semanal - sabado 01:00)
-0 1 * * 6 cd "$REPO_DIR" && ./scripts/mantenimiento.sh >> "$LOG_DIR/mantenimiento.log" 2>&1
+0 1 * * 6 cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="5400" ./scripts/mantenimiento.sh >> "$LOG_DIR/mantenimiento.log" 2>&1
 
 # check_docker_health.sh (cada 5 minutos)
-*/5 * * * * cd "$REPO_DIR" && ./scripts/check_docker_health.sh >> "$LOG_DIR/check_docker_health.log" 2>&1
+*/5 * * * * cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="600" ./scripts/check_docker_health.sh >> "$LOG_DIR/check_docker_health.log" 2>&1
 
 # backup_configs.sh (diario 02:10)
-10 2 * * * cd "$REPO_DIR" && ./scripts/backup_configs.sh >> "$LOG_DIR/backup_configs.log" 2>&1
+10 2 * * * cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="1800" ./scripts/backup_configs.sh >> "$LOG_DIR/backup_configs.log" 2>&1
 
 # rotate_prune_logs.sh (diario 03:00)
-0 3 * * * cd "$REPO_DIR" && ./scripts/rotate_prune_logs.sh >> "$LOG_DIR/rotate_prune_logs.log" 2>&1
+0 3 * * * cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="1800" ./scripts/rotate_prune_logs.sh >> "$LOG_DIR/rotate_prune_logs.log" 2>&1
 
 # verify_backup_restore.sh (semanal domingo 04:00)
-0 4 * * 0 cd "$REPO_DIR" && ./scripts/verify_backup_restore.sh >> "$LOG_DIR/verify_backup_restore.log" 2>&1
+0 4 * * 0 cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="1800" ./scripts/verify_backup_restore.sh >> "$LOG_DIR/verify_backup_restore.log" 2>&1
 
 # validate_compose_all.sh (diario 06:00)
-0 6 * * * cd "$REPO_DIR" && ./scripts/validate_compose_all.sh >> "$LOG_DIR/validate_compose_all.log" 2>&1
+0 6 * * * cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="900" ./scripts/validate_compose_all.sh >> "$LOG_DIR/validate_compose_all.log" 2>&1
 
 # check_tls_expiry.sh (diario 07:30)
-30 7 * * * cd "$REPO_DIR" && ./scripts/check_tls_expiry.sh >> "$LOG_DIR/check_tls_expiry.log" 2>&1
+30 7 * * * cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="1200" ./scripts/check_tls_expiry.sh >> "$LOG_DIR/check_tls_expiry.log" 2>&1
 
 # check_updates_report.sh (diario 08:00)
-0 8 * * * cd "$REPO_DIR" && ./scripts/check_updates_report.sh >> "$LOG_DIR/check_updates_report.log" 2>&1
+0 8 * * * cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="1800" ./scripts/check_updates_report.sh >> "$LOG_DIR/check_updates_report.log" 2>&1
 
 # security_baseline_audit.sh (semanal lunes 05:00)
-0 5 * * 1 cd "$REPO_DIR" && ./scripts/security_baseline_audit.sh >> "$LOG_DIR/security_baseline_audit.log" 2>&1
+0 5 * * 1 cd "$REPO_DIR" && LOCK_DIR="$LOCK_DIR" SCRIPT_TIMEOUT_SEC="900" ./scripts/security_baseline_audit.sh >> "$LOG_DIR/security_baseline_audit.log" 2>&1

@@ -8,13 +8,15 @@
 
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
+
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_GLOB="$ROOT_DIR/docker/*/docker-compose.yml"
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "[ERROR] docker no esta disponible en PATH"
-  exit 2
-fi
+init_runtime "check_docker_health" 600
+require_commands docker
 
 shopt -s nullglob
 compose_files=($COMPOSE_GLOB)
@@ -39,7 +41,7 @@ for compose_file in "${compose_files[@]}"; do
   echo "--- Stack: $stack_name ---"
 
   # -a incluye contenedores detenidos para detectar exited/dead.
-  mapfile -t container_ids < <(docker compose -f "$compose_file" ps -aq 2>/dev/null || true)
+  mapfile -t container_ids < <(run_with_script_timeout docker compose -f "$compose_file" ps -aq 2>/dev/null || true)
 
   if ((${#container_ids[@]} == 0)); then
     echo "[INFO] Sin contenedores creados en este stack"
@@ -49,7 +51,7 @@ for compose_file in "${compose_files[@]}"; do
 
   for cid in "${container_ids[@]}"; do
     # Health puede no existir segun la imagen; se muestra como n/a.
-    line="$(docker inspect --format '{{.Name}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}' "$cid" 2>/dev/null || true)"
+    line="$(run_with_script_timeout docker inspect --format '{{.Name}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}' "$cid" 2>/dev/null || true)"
 
     if [[ -z "$line" ]]; then
       echo "[WARN] No se pudo inspeccionar contenedor $cid"

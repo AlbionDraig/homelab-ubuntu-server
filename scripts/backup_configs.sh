@@ -5,7 +5,13 @@ set -Eeuo pipefail
 # Diseñado para cron: usa rutas absolutas, salida simple y falla de forma explicita.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
+
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+init_runtime "backup_configs" 1800
+require_commands mktemp find sort tar mkdir rm
 
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/homelab/configs}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
@@ -52,19 +58,19 @@ trap cleanup EXIT
     printf '%s\0' 'docker/crafty/docker-compose.yml'
   fi
 
-  (cd "$REPO_ROOT" && find docker \
+  (cd "$REPO_ROOT" && run_with_script_timeout find docker \
     \( -path 'docker/crafty' -o -path '*/logs' -o -path '*/backups' \) -prune -o \
     -type f \( -name 'docker-compose.yml' -o -name '*.yml' -o -name '*.yaml' -o -name '*.json' \) -print0)
 
-  (cd "$REPO_ROOT" && find scripts -maxdepth 1 -type f -name '*.sh' -print0)
+  (cd "$REPO_ROOT" && run_with_script_timeout find scripts -maxdepth 1 -type f -name '*.sh' -print0)
 } | sort -zu > "$tmp_list"
 
 [[ -s "$tmp_list" ]] || fail "No se encontraron archivos para respaldar"
 
 log "Creando backup: $ARCHIVE_PATH"
-(cd "$REPO_ROOT" && tar -czf "$ARCHIVE_PATH" --null --files-from "$tmp_list")
+(cd "$REPO_ROOT" && run_with_script_timeout tar -czf "$ARCHIVE_PATH" --null --files-from "$tmp_list")
 
 log "Aplicando retencion: ${RETENTION_DAYS} dias"
-find "$BACKUP_DIR" -maxdepth 1 -type f -name 'homelab-configs-*.tar.gz' -mtime "+${RETENTION_DAYS}" -print -delete || true
+run_with_script_timeout find "$BACKUP_DIR" -maxdepth 1 -type f -name 'homelab-configs-*.tar.gz' -mtime "+${RETENTION_DAYS}" -print -delete || true
 
 log "Backup completado correctamente"

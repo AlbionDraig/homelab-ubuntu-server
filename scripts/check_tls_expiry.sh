@@ -8,21 +8,18 @@
 
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
+
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DAYS_WARN="${DAYS_WARN:-30}"
+
+init_runtime "check_tls_expiry" 1200
+require_commands openssl date find
 
 if ! [[ "$DAYS_WARN" =~ ^[0-9]+$ ]]; then
   echo "[ERROR] DAYS_WARN debe ser un entero >= 0. Valor recibido: $DAYS_WARN"
-  exit 2
-fi
-
-if ! command -v openssl >/dev/null 2>&1; then
-  echo "[ERROR] openssl no esta disponible en PATH"
-  exit 2
-fi
-
-if ! command -v date >/dev/null 2>&1; then
-  echo "[ERROR] date no esta disponible en PATH"
   exit 2
 fi
 
@@ -52,7 +49,7 @@ add_candidate_certs_from_dir() {
     if openssl x509 -in "$file_path" -noout >/dev/null 2>&1; then
       cert_files+=("$file_path")
     fi
-  done < <(find -L "$base_dir" -type f -print0 2>/dev/null)
+  done < <(run_with_script_timeout find -L "$base_dir" -type f -print0 2>/dev/null)
 }
 
 echo "=== Check TLS Expiry ==="
@@ -64,7 +61,7 @@ echo
 # 1) Directorios de certificados dentro de docker/**/certs y docker/**/certificates
 while IFS= read -r -d '' cert_dir; do
   add_candidate_certs_from_dir "$cert_dir"
-done < <(find "$ROOT_DIR/docker" -type d \( -name certs -o -name certificates \) -print0 2>/dev/null)
+done < <(run_with_script_timeout find "$ROOT_DIR/docker" -type d \( -name certs -o -name certificates \) -print0 2>/dev/null)
 
 # 2) Certificados locales del sistema, solo si el directorio existe y es accesible.
 add_candidate_certs_from_dir "/etc/ssl/certs"

@@ -4,6 +4,10 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
+
 log_info() {
     echo "[$(date '+%F %T')] [INFO] $*"
 }
@@ -23,6 +27,9 @@ on_error() {
 
 trap 'on_error ${LINENO}' ERR
 
+init_runtime "mantenimiento" 5400
+require_commands apt-get dpkg findmnt lsblk grep
+
 require_root() {
     if [[ "${EUID}" -ne 0 ]]; then
         log_error "Este script debe ejecutarse como root."
@@ -35,16 +42,16 @@ actualizar_y_reparar_paquetes() {
     log_info "1. ACTUALIZACION Y REPARACION DE PAQUETES"
     log_info "---------------------------------------------------------"
 
-    apt-get update -y
-    apt-get install -f -y
+    run_with_script_timeout apt-get update -y
+    run_with_script_timeout apt-get install -f -y
     dpkg --configure -a
-    apt-get autoremove -y
-    apt-get clean -y
+    run_with_script_timeout apt-get autoremove -y
+    run_with_script_timeout apt-get clean -y
 }
 
 instalar_herramientas_disco() {
     # Dependencias para diagnostico y metadatos de disco.
-    apt-get install -y smartmontools parted
+    run_with_script_timeout apt-get install -y smartmontools parted
 }
 
 get_root_device() {
@@ -79,7 +86,7 @@ analizar_salud_smart() {
     while IFS= read -r disco; do
         [[ -z "${disco}" ]] && continue
         log_info "Salud del disco /dev/${disco}:"
-        if ! smartctl -H "/dev/${disco}" | grep -E "result|PASSED|FAILED"; then
+        if ! run_with_script_timeout smartctl -H "/dev/${disco}" | grep -E "result|PASSED|FAILED"; then
             log_warn "No se pudo obtener estado SMART resumido para /dev/${disco}."
         fi
     done < <(lsblk -dno NAME | grep -E '^(sd|nvme)')

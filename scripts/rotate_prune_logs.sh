@@ -7,7 +7,13 @@ set -Eeuo pipefail
 # - Tolera rutas inexistentes sin fallar.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
+
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+init_runtime "rotate_prune_logs" 1800
+require_commands find gzip
 
 LOG_RETENTION_DAYS="${LOG_RETENTION_DAYS:-14}"
 MAX_SIZE_MB="${MAX_SIZE_MB:-20}"
@@ -41,14 +47,14 @@ for path in "${log_paths[@]}"; do
   fi
 
   log "Limpieza de logs antiguos en: $path"
-  find "$path" -type f -name '*.log' -mtime "+${LOG_RETENTION_DAYS}" -print -delete || true
+  run_with_script_timeout find "$path" -type f -name '*.log' -mtime "+${LOG_RETENTION_DAYS}" -print -delete || true
 
   if [[ "$COMPRESS_LARGE_LOGS" == "1" ]]; then
     log "Compresion de logs grandes (> ${MAX_SIZE_MB} MB) en: $path"
     while IFS= read -r -d '' file; do
       gzip -f "$file"
       log "Comprimido: ${file}.gz"
-    done < <(find "$path" -type f -name '*.log' -size "+${MAX_SIZE_MB}M" -print0)
+    done < <(run_with_script_timeout find "$path" -type f -name '*.log' -size "+${MAX_SIZE_MB}M" -print0)
   fi
 done
 

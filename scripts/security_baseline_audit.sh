@@ -13,7 +13,14 @@
 
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
+
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+init_runtime "security_baseline_audit" 900
+require_commands find sort grep awk tail head
 
 echo "=== Security Baseline Audit ==="
 echo "Fecha: $(date -Is)"
@@ -25,7 +32,10 @@ if [[ ! -d "$ROOT_DIR/docker" ]]; then
   exit 0
 fi
 
-mapfile -t compose_files < <(find "$ROOT_DIR/docker" -type f -name 'docker-compose.yml' | sort)
+mapfile -t compose_files < <(run_with_script_timeout find "$ROOT_DIR/docker" -type f -name 'docker-compose.yml')
+if ((${#compose_files[@]} > 0)); then
+  mapfile -t compose_files < <(printf '%s\n' "${compose_files[@]}" | sort)
+fi
 
 if ((${#compose_files[@]} == 0)); then
   echo "[WARN] No se encontraron docker-compose.yml bajo $ROOT_DIR/docker"

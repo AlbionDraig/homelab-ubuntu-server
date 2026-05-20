@@ -8,7 +8,14 @@
 
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./lib/runtime.sh
+source "$SCRIPT_DIR/lib/runtime.sh"
+
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+init_runtime "check_updates_report" 1800
+require_commands date awk grep sort
 
 echo "=== Check Updates Report ==="
 echo "Fecha: $(date -Is)"
@@ -18,7 +25,7 @@ echo
 echo "--- Sistema: updates apt ---"
 if command -v apt-get >/dev/null 2>&1; then
   # Simulacion segura para contar paquetes actualizables sin instalar nada.
-  upgradable_count="$(apt-get -s upgrade 2>/dev/null | awk '/^Inst /{count++} END{print count+0}')"
+  upgradable_count="$(run_with_script_timeout apt-get -s upgrade 2>/dev/null | awk '/^Inst /{count++} END{print count+0}')"
   echo "Paquetes upgradables (estimado): $upgradable_count"
 
   if command -v apt >/dev/null 2>&1; then
@@ -45,17 +52,20 @@ fi
 echo
 echo "--- Docker Compose: dry-run de pull por stack (opcional) ---"
 if command -v docker >/dev/null 2>&1; then
-  mapfile -t compose_files < <(find "$ROOT_DIR/docker" -type f -name 'docker-compose.yml' | sort)
+  mapfile -t compose_files < <(run_with_script_timeout find "$ROOT_DIR/docker" -type f -name 'docker-compose.yml')
+  if ((${#compose_files[@]} > 0)); then
+    mapfile -t compose_files < <(printf '%s\n' "${compose_files[@]}" | sort)
+  fi
 
   if ((${#compose_files[@]} == 0)); then
     echo "[INFO] No se encontraron docker-compose.yml para evaluar"
     exit 0
   fi
 
-  if docker compose pull --help 2>/dev/null | grep -q -- '--dry-run'; then
+  if run_with_script_timeout docker compose pull --help 2>/dev/null | grep -q -- '--dry-run'; then
     for compose_file in "${compose_files[@]}"; do
       stack_name="$(basename "$(dirname "$compose_file")")"
-      if docker compose -f "$compose_file" pull --dry-run >/dev/null 2>&1; then
+      if run_with_script_timeout docker compose -f "$compose_file" pull --dry-run >/dev/null 2>&1; then
         echo "[OK]   $stack_name dry-run pull"
       else
         # No fallar el script: es reporte opcional.
