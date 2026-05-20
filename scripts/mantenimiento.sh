@@ -1,38 +1,106 @@
-#!/bin/bash
-# ---------------------------------------------------------
-# 1. ACTUALIZACIÓN Y REPARACIÓN DE PAQUETES
-# ---------------------------------------------------------
-echo "---------------------------------------------------------"
-echo "1. ACTUALIZACIÓN Y REPARACIÓN DE PAQUETES"
-echo "---------------------------------------------------------"
-apt-get update -y
-apt-get install -f -y
-dpkg --configure -a
-apt-get autoremove -y
-apt-get clean -y
+#!/usr/bin/env bash
+# Mantenimiento seguro para Ubuntu Server.
 
-# ---------------------------------------------------------
-# 2. ANÁLISIS DE DISCOS Y REPARACIÓN AUTOMÁTICA
-# ---------------------------------------------------------
-echo "---------------------------------------------------------"
-echo "2. ANÁLISIS DE DISCOS Y REPARACIÓN AUTOMÁTICA"
-echo "---------------------------------------------------------"
-# Instalar herramientas de diagnóstico de discos si no están
-apt-get install smartmontools parted -y
+set -Eeuo pipefail
+IFS=$'\n\t'
 
-echo "=== ANÁLISIS DE DISCOS: $(date) ==="
+log_info() {
+    echo "[$(date '+%F %T')] [INFO] $*"
+}
 
-# Forzar chequeo automático de archivos (FSCK) en el próximo reinicio de forma desatendida
-tune2fs -c 1 /dev/sda1 2>/dev/null || true
+log_warn() {
+    echo "[$(date '+%F %T')] [WARN] $*" >&2
+}
 
-# Analizar la salud física de los discos (S.M.A.R.T.)
-for disco in $(lsblk -dno NAME | grep -E '^sd|^nvme'); do
-    echo "Salud del disco /dev/$disco:"
-    smartctl -H /dev/$disco | grep -E "result|PASSED|FAILED"
-done
+log_error() {
+    echo "[$(date '+%F %T')] [ERROR] $*" >&2
+}
 
-# Reparar errores leves de sectores lógicos corruptos (si el disco se puede poner en solo lectura)
-# Nota: Si /dev/sda1 es tu raíz, el sistema se congelará momentáneamente para repararse de forma segura.
-echo "=== REPARAR ERRORES LEVES DE SECTORES LÓGICOS CORRUPTOS ==="
-fsck -a -A -y 2>/dev/null || true
+on_error() {
+    local line="$1"
+    log_error "Fallo en la linea ${line}."
+}
+
+trap 'on_error ${LINENO}' ERR
+
+require_root() {
+    if [[ "${EUID}" -ne 0 ]]; then
+        log_error "Este script debe ejecutarse como root."
+        exit 1
+    fi
+}
+
+actualizar_y_reparar_paquetes() {
+    log_info "---------------------------------------------------------"
+    log_info "1. ACTUALIZACION Y REPARACION DE PAQUETES"
+    log_info "---------------------------------------------------------"
+
+    apt-get update -y
+    apt-get install -f -y
+    dpkg --configure -a
+    apt-get autoremove -y
+    apt-get clean -y
+}
+
+instalar_herramientas_disco() {
+    # Dependencias para diagnostico y metadatos de disco.
+    apt-get install -y smartmontools parted
+}
+
+get_root_device() {
+    # Detecta el dispositivo real montado en /.
+    findmnt -nro SOURCE /
+}
+
+programar_fsck_proximo_reinicio() {
+    local root_device root_fstype
+
+    root_device="$(get_root_device)"
+    root_fstype="$(findmnt -nro FSTYPE /)"
+
+    log_info "Raiz detectada: ${root_device} (${root_fstype})"
+
+    # Solo ext2/3/4 en /dev/* soporta tune2fs; otros FS usan fallback.
+    if [[ "${root_fstype}" =~ ^ext[2-4]$ ]] \
+        && [[ "${root_device}" == /dev/* ]] \
+        && command -v tune2fs >/dev/null 2>&1; then
+        tune2fs -c 1 "${root_device}"
+        log_info "FSCK programado con tune2fs para el proximo reinicio."
+    else
+        touch /forcefsck
+        log_warn "No se pudo usar tune2fs (FS no ext, origen no /dev o comando ausente). Se creo /forcefsck."
+    fi
+}
+
+analizar_salud_smart() {
+    local disco
+
+    log_info "=== ANALISIS SMART DE DISCOS: $(date '+%F %T') ==="
+    while IFS= read -r disco; do
+        [[ -z "${disco}" ]] && continue
+        log_info "Salud del disco /dev/${disco}:"
+        if ! smartctl -H "/dev/${disco}" | grep -E "result|PASSED|FAILED"; then
+            log_warn "No se pudo obtener estado SMART resumido para /dev/${disco}."
+        fi
+    done < <(lsblk -dno NAME | grep -E '^(sd|nvme)')
+}
+
+main() {
+    require_root
+
+    actualizar_y_reparar_paquetes
+
+    log_info "---------------------------------------------------------"
+    log_info "2. ANALISIS DE DISCOS Y PROGRAMACION DE FSCK"
+    log_info "---------------------------------------------------------"
+
+    instalar_herramientas_disco
+    programar_fsck_proximo_reinicio
+    analizar_salud_smart
+
+    # No se ejecuta fsck en caliente para evitar riesgo operativo.
+    log_info "Mantenimiento completado. El chequeo de FS quedo programado para reinicio."
+}
+
+main "$@"
 
