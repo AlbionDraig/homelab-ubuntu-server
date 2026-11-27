@@ -79,7 +79,7 @@ Si ya tienes el repositorio remoto:
 ~~~bash
 sudo mkdir -p /opt
 sudo chown $USER:$USER /opt
-git clone REEMPLAZA_CON_URL_REAL_DEL_REPO /opt/homelab-ubuntu-server
+git clone https://github.com/AlbionDraig/homelab-ubuntu-server.git /opt/homelab-ubuntu-server
 cd /opt/homelab-ubuntu-server
 ~~~
 
